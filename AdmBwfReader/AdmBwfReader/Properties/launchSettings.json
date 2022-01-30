@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "AdmBwfReader": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\proj\\MyProject\\resources\\AdmBounceTest.wav"
+    }
+  }
+}
