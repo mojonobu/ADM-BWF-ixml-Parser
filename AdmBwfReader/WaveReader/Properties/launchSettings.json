@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "AdmBwfReader": {
+    "WaveReader": {
       "commandName": "Project",
       "commandLineArgs": "C:\\proj\\MyProject\\resources\\testSong.wav"
     }

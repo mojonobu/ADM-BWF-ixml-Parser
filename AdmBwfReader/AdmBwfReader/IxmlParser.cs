@@ -39,7 +39,7 @@ namespace AdmBwfReader
                     }
                     Match xmlMatch = regex.Match(str);
                     XDocument doc = XDocument.Parse(xmlMatch.Value);
-                    //Console.WriteLine(doc.ToString());
+                    Console.WriteLine(doc.ToString());
 
                     break;
                 }
