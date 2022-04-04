@@ -80,7 +80,10 @@ namespace WaveReader
         /// Padding byte if n is odd
         /// </summary>
         public byte padByte;
+
+        public List<byte[]> channelList;
     }
+
     class WaveReader
     {
         public string RiffFourCC;
@@ -88,6 +91,7 @@ namespace WaveReader
         public string WaveFourCC;
         public FmtChunk fmtChunk;
         public DataChunk dataChunk;
+
 
         public void Parse(string filePath)
         {
@@ -107,7 +111,7 @@ namespace WaveReader
                         if (chunk == "fmt ")
                         {
                             fmtChunk.ckID = chunk;
-                            fmtChunk.cksize = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                            fmtChunk.cksize = BitConverter.ToInt16(binaryReader.ReadBytes(4), 0);
                             fmtChunk.wFormatTag = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
                             fmtChunk.nChannels = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
                             fmtChunk.nSamplesPerSec = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
@@ -138,6 +142,14 @@ namespace WaveReader
                             dataChunk.ckID = chunk;
                             dataChunk.cksize = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
                             dataChunk.sampledData = binaryReader.ReadBytes(dataChunk.cksize);
+
+                            // チャンネルごとに分割
+                            dataChunk.channelList = new List<byte[]>();
+                            for(int chIndex=0; chIndex<fmtChunk.nChannels; chIndex++)
+                            {
+                                // Todo
+                            }
+                            
                         }
                     }
                 }
