@@ -7,40 +7,55 @@ namespace WaveReader
 {
     public struct FmtChunk
     {
+        ///
         /// <summary>
         /// Chunk ID: "fmt "
         /// </summary>
         public string ckID;
         /// <summary>
-        /// Chunk size: 16, 18 or 40 以降のfmtチャンクのサイズ？
+        /// Chunk size: 16(リニアPCM), 18 or 40
+        /// 以降のfmtチャンクのサイズ
         /// </summary>
         public int cksize;
         /// <summary>
-        /// Format code
+        /// Format code : 非圧縮のリニアPCMは1(0x0100),A-lawは6などなど
         /// </summary>
         public short wFormatTag;
         /// <summary>
         /// Number of interleaved channels
+        /// チャンネル数
         /// </summary>
         public short nChannels;
         /// <summary>
         /// sample rate
+        /// サンプリング周波数
+        /// 44.1kHzなど
         /// </summary>
         public int nSamplesPerSec;
         /// <summary>
         /// data rate
+        /// 1秒当たりのバイト数平均
+        /// bit数 * サンプリング周波数 * 1データあたりブロックサイズ(下記)
+        /// 44.1kHz, 16bit,モノラルの場合
+        /// 44100 * 2(byte) * 1 = 88200
         /// </summary>
         public int nAvgBytesPerSec;
         /// <summary>
         /// Data block size (bytes)
+        /// (1サンプル当たりのビット数 / 8) * チャンネル数
+        /// 16bitステレオなら16 / 8  * 2 = 4
+        /// で、4となる
         /// </summary>
         public short nBlockAlign;
         /// <summary>
-        /// 	Bits per sample
+        /// Bits per sample
+        /// 1サンプル当たりのビット数。ビットレート
+        /// 8bit, 16bit...	
         /// </summary>
         public short wBitsPerSample;
         /// <summary>
         /// Size of the extension (0 or 22)
+        /// 拡張パラメータサイズ
         /// </summary>
         public short cbSize;
         /// <summary>
@@ -74,14 +89,21 @@ namespace WaveReader
         public int cksize;
         /// <summary>
         /// Samples
+        /// オーディオデータ本体
+        /// リニアPCMの場合は時間順。1チャンネルごとに順に格納
+        /// ステレオの場合左右左右…
+        /// 8bitの場合は符号なし整数(0-255), 16bitの場合は符号付整数(-32768 - 32767)
         /// </summary>
         public byte[] sampledData;
         /// <summary>
         /// Padding byte if n is odd
+        /// パディングバイト
         /// </summary>
         public byte padByte;
-
-        public List<byte[]> channelList;
+        /// <summary>
+        /// 各チャンネルのバイト配列
+        /// </summary>
+        public byte[,] channelDataArray;
     }
 
     class WaveReader
@@ -143,13 +165,8 @@ namespace WaveReader
                             dataChunk.cksize = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
                             dataChunk.sampledData = binaryReader.ReadBytes(dataChunk.cksize);
 
-                            // チャンネルごとに分割
-                            dataChunk.channelList = new List<byte[]>();
-                            for(int chIndex=0; chIndex<fmtChunk.nChannels; chIndex++)
-                            {
-                                // Todo
-                            }
-                            
+                            DistributeDataToChannel();
+                            CalcuratePlayTime();
                         }
                     }
                 }
@@ -158,6 +175,41 @@ namespace WaveReader
                     stream.Close();
                 }
             }
+        }
+
+        /// <summary>
+        /// データチャンクをチャンネルごとに分割する
+        /// </summary>
+        private void DistributeDataToChannel()
+        {
+            // 1チャンネル当たりのバイト数
+            int byteSizePerCh = dataChunk.cksize / fmtChunk.nChannels;
+
+            // チャンネルごとにバイト列のサイズを確保
+            dataChunk.channelDataArray = new byte[fmtChunk.nChannels, byteSizePerCh];
+
+            int indexPerChannel = 0;
+            int indexPerWholeData = 0;
+            int bytesPerSample = fmtChunk.wBitsPerSample / 8;
+            while (indexPerWholeData < dataChunk.cksize)
+            {
+                for (int chIndex = 0; chIndex < fmtChunk.nChannels; chIndex++)
+                {
+                    for(int byteReadIdx=0; byteReadIdx< bytesPerSample; byteReadIdx++)
+                    {
+                        dataChunk.channelDataArray[chIndex,indexPerChannel + byteReadIdx] = dataChunk.sampledData[indexPerWholeData];
+                        indexPerWholeData++;
+                    }
+                }
+                indexPerChannel += bytesPerSample;
+            }
+        }
+
+        private void CalcuratePlayTime()
+        {
+            //int BytesPerChannel = dataChunk.cksize / fmtChunk.nChannels;
+            float ByteSizePerSec = fmtChunk.nSamplesPerSec * fmtChunk.nBlockAlign;
+            float timeSec = dataChunk.cksize / ByteSizePerSec;
         }
     }
 }
