@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace WaveReader
 {
-    public struct FmtChunk
+    [StructLayout(LayoutKind.Sequential)]
+    public class FmtChunk
     {
-        ///
         /// <summary>
         /// Chunk ID: "fmt "
         /// </summary>
@@ -75,9 +77,14 @@ namespace WaveReader
         /// string
         /// </summary>
         public string SubFormat_former;
+
+        public FmtChunk Clone()
+        {
+            return (FmtChunk)MemberwiseClone();
+        }
     }
 
-    public struct DataChunk
+    public class DataChunk
     {
         /// <summary>
         /// Chunk ID: "data"
@@ -103,7 +110,7 @@ namespace WaveReader
         /// <summary>
         /// 各チャンネルのバイト配列
         /// </summary>
-        public byte[,] channelDataArray;
+        public List<byte[]> channelDataArray;
     }
 
     class WaveReader
@@ -111,8 +118,8 @@ namespace WaveReader
         public string RiffFourCC;
         public int DataSize;
         public string WaveFourCC;
-        public FmtChunk fmtChunk;
-        public DataChunk dataChunk;
+        public FmtChunk impFmtChunk = new FmtChunk();
+        public DataChunk impDataChunk = new DataChunk();
 
 
         public void Parse(string filePath)
@@ -132,41 +139,42 @@ namespace WaveReader
 
                         if (chunk == "fmt ")
                         {
-                            fmtChunk.ckID = chunk;
-                            fmtChunk.cksize = BitConverter.ToInt16(binaryReader.ReadBytes(4), 0);
-                            fmtChunk.wFormatTag = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
-                            fmtChunk.nChannels = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
-                            fmtChunk.nSamplesPerSec = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
-                            fmtChunk.nAvgBytesPerSec = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
-                            fmtChunk.nBlockAlign = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
-                            fmtChunk.wBitsPerSample = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                            impFmtChunk.ckID = chunk;
+                            impFmtChunk.cksize = BitConverter.ToInt16(binaryReader.ReadBytes(4), 0);
+                            impFmtChunk.wFormatTag = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                            impFmtChunk.nChannels = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                            impFmtChunk.nSamplesPerSec = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
+                            impFmtChunk.nAvgBytesPerSec = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
+                            impFmtChunk.nBlockAlign = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                            impFmtChunk.wBitsPerSample = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
 
-                            switch (fmtChunk.cksize)
+                            switch (impFmtChunk.cksize)
                             {
                                 case 16:
                                     break;
                                 case 18:
-                                    fmtChunk.cbSize = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                                    impFmtChunk.cbSize = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
                                     break;
                                 case 40:
-                                    fmtChunk.cbSize = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
-                                    fmtChunk.wValidBitsPerSample = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
-                                    fmtChunk.dwChannelMask = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
-                                    fmtChunk.SubFormat_former = System.Text.Encoding.ASCII.GetString(binaryReader.ReadBytes(16));
+                                    impFmtChunk.cbSize = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                                    impFmtChunk.wValidBitsPerSample = BitConverter.ToInt16(binaryReader.ReadBytes(2), 0);
+                                    impFmtChunk.dwChannelMask = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
+                                    impFmtChunk.SubFormat_former = System.Text.Encoding.ASCII.GetString(binaryReader.ReadBytes(16));
                                     break;
                                 default:
                                     break;
                             }
                         }
 
-                        if(chunk == "data")
+                        if (chunk == "data")
                         {
-                            dataChunk.ckID = chunk;
-                            dataChunk.cksize = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
-                            dataChunk.sampledData = binaryReader.ReadBytes(dataChunk.cksize);
+                            impDataChunk.ckID = chunk;
+                            impDataChunk.cksize = BitConverter.ToInt32(binaryReader.ReadBytes(4), 0);
+                            impDataChunk.sampledData = binaryReader.ReadBytes(impDataChunk.cksize);
 
                             DistributeDataToChannel();
                             CalcuratePlayTime();
+                            break;
                         }
                     }
                 }
@@ -175,6 +183,7 @@ namespace WaveReader
                     stream.Close();
                 }
             }
+            ExportWav(filePath);
         }
 
         /// <summary>
@@ -183,21 +192,25 @@ namespace WaveReader
         private void DistributeDataToChannel()
         {
             // 1チャンネル当たりのバイト数
-            int byteSizePerCh = dataChunk.cksize / fmtChunk.nChannels;
+            int byteSizePerCh = impDataChunk.cksize / impFmtChunk.nChannels;
 
             // チャンネルごとにバイト列のサイズを確保
-            dataChunk.channelDataArray = new byte[fmtChunk.nChannels, byteSizePerCh];
+            impDataChunk.channelDataArray = new List<byte[]>();
+            for (int i = 0; i < impFmtChunk.nChannels; i++)
+            {
+                impDataChunk.channelDataArray.Add(new byte[byteSizePerCh]);
+            }
 
             int indexPerChannel = 0;
             int indexPerWholeData = 0;
-            int bytesPerSample = fmtChunk.wBitsPerSample / 8;
-            while (indexPerWholeData < dataChunk.cksize)
+            int bytesPerSample = impFmtChunk.wBitsPerSample / 8;
+            while (indexPerWholeData < impDataChunk.cksize)
             {
-                for (int chIndex = 0; chIndex < fmtChunk.nChannels; chIndex++)
+                for (int chIndex = 0; chIndex < impFmtChunk.nChannels; chIndex++)
                 {
-                    for(int byteReadIdx=0; byteReadIdx< bytesPerSample; byteReadIdx++)
+                    for (int byteReadIdx = 0; byteReadIdx < bytesPerSample; byteReadIdx++)
                     {
-                        dataChunk.channelDataArray[chIndex,indexPerChannel + byteReadIdx] = dataChunk.sampledData[indexPerWholeData];
+                        impDataChunk.channelDataArray[chIndex][indexPerChannel + byteReadIdx] = impDataChunk.sampledData[indexPerWholeData];
                         indexPerWholeData++;
                     }
                 }
@@ -208,8 +221,71 @@ namespace WaveReader
         private void CalcuratePlayTime()
         {
             //int BytesPerChannel = dataChunk.cksize / fmtChunk.nChannels;
-            float ByteSizePerSec = fmtChunk.nSamplesPerSec * fmtChunk.nBlockAlign;
-            float timeSec = dataChunk.cksize / ByteSizePerSec;
+            float ByteSizePerSec = impFmtChunk.nSamplesPerSec * impFmtChunk.nBlockAlign;
+            float timeSec = impDataChunk.cksize / ByteSizePerSec;
         }
+
+        public void ExportWav(string path)
+        {
+            // copy metadata
+            FmtChunk expFmtChunk = impFmtChunk.Clone();
+            expFmtChunk.nChannels = 1;
+            expFmtChunk.nAvgBytesPerSec /= impFmtChunk.nChannels;
+            expFmtChunk.nBlockAlign /= impFmtChunk.nChannels;
+
+            var dataSizePerCh = impDataChunk.cksize / impFmtChunk.nChannels;
+            for (int channelIdx = 0; channelIdx < impFmtChunk.nChannels; channelIdx++)
+            {
+                string outputFullPath = path + "-" + channelIdx.ToString() + ".wav";
+                // file Open
+                using (FileStream fs = new FileStream(outputFullPath, FileMode.Create, FileAccess.Write))
+                {
+                    // RIFF Chunk
+                    fs.Write(Encoding.ASCII.GetBytes(RiffFourCC));
+                    int dataSize = DataSize - dataSizePerCh * (impFmtChunk.nChannels - 1);
+                    fs.Write(BitConverter.GetBytes(dataSize));
+                    fs.Write(Encoding.ASCII.GetBytes(WaveFourCC));
+
+                    // fmtChunk
+                    fs.Write(Encoding.ASCII.GetBytes(expFmtChunk.ckID));
+                    fs.Write(BitConverter.GetBytes(expFmtChunk.cksize));
+                    fs.Write(BitConverter.GetBytes(expFmtChunk.wFormatTag));
+                    fs.Write(BitConverter.GetBytes(expFmtChunk.nChannels));
+                    fs.Write(BitConverter.GetBytes(expFmtChunk.nSamplesPerSec));
+                    fs.Write(BitConverter.GetBytes(expFmtChunk.nAvgBytesPerSec));
+                    fs.Write(BitConverter.GetBytes(expFmtChunk.nBlockAlign));
+                    fs.Write(BitConverter.GetBytes(expFmtChunk.wBitsPerSample));
+
+                    switch (expFmtChunk.cksize)
+                    {
+                        case 16:
+                            break;
+                        case 18:
+                            fs.Write(BitConverter.GetBytes(expFmtChunk.cbSize));
+                            break;
+                        case 40:
+                            fs.Write(BitConverter.GetBytes(expFmtChunk.cbSize));
+                            fs.Write(BitConverter.GetBytes(expFmtChunk.wValidBitsPerSample));
+                            fs.Write(BitConverter.GetBytes(expFmtChunk.dwChannelMask));
+                            fs.Write(Encoding.ASCII.GetBytes(expFmtChunk.SubFormat_former));
+                            break;
+                        default:
+                            break;
+
+                    }
+
+                    // dataChunk
+                    fs.Write(Encoding.ASCII.GetBytes(impDataChunk.ckID));
+                    fs.Write(BitConverter.GetBytes(dataSizePerCh));
+                    fs.Write(impDataChunk.channelDataArray[channelIdx]);
+
+                }
+
+
+            }
+
+
+        }
+
     }
 }

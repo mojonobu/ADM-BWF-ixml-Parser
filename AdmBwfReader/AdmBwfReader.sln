@@ -5,7 +5,7 @@ VisualStudioVersion = 16.0.31702.278
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AdmBwfReader", "AdmBwfReader\AdmBwfReader.csproj", "{E1532F29-C7FD-478F-AC36-5C242E8F545D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WaveReader", "WaveReader\WaveReader.csproj", "{D0A0020E-6DBA-4BBB-BFEC-F9ABF9D50D76}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WaveReader", "WaveReader\WaveReader.csproj", "{D0A0020E-6DBA-4BBB-BFEC-F9ABF9D50D76}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

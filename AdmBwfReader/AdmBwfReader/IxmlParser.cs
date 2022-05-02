@@ -39,7 +39,9 @@ namespace AdmBwfReader
                     }
                     Match xmlMatch = regex.Match(str);
                     XDocument doc = XDocument.Parse(xmlMatch.Value);
-                    Console.WriteLine(doc.ToString());
+
+                    ExportXML(doc);
+                    //Console.WriteLine(doc.ToString());
 
                     break;
                 }
@@ -49,6 +51,11 @@ namespace AdmBwfReader
                 }
             }
 
+        }
+
+        private static void ExportXML(XDocument doc)
+        {
+            File.WriteAllText(@"C:\proj\MyProject\resources\iXML.xml",doc.ToString());
         }
     }
 }
